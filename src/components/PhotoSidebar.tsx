@@ -89,6 +89,7 @@ export default function PhotoSidebar({
                 alt={photo.file_name}
                 width={56}
                 height={56}
+                unoptimized
                 className="object-cover w-full h-full"
               />
             </div>

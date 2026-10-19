@@ -1,124 +1,29 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
-
-interface SensorEntry {
-  session_id: string
-  timestamp: string
-  accel_x: number | null
-  accel_y: number | null
-  accel_z: number | null
-  gyro_x: number | null
-  gyro_y: number | null
-  gyro_z: number | null
-  pressure: number | null
-  altitude: number | null
-  label: string
-}
+import { useState } from 'react'
+import { useSensorRecorder } from '@/components/SensorRecorderProvider'
 
 function calcAltitude(pressure: number): number {
   return 44330 * (1 - Math.pow(pressure / 1013.25, 1 / 5.255))
 }
 
 export default function SensorPage() {
-  const [isRecording, setIsRecording] = useState(false)
-  const [label, setLabel] = useState('歩行中')
-  const [logs, setLogs] = useState<SensorEntry[]>([])
-  const [sessionId] = useState(() => `session_${Date.now()}`)
-  const [accel, setAccel] = useState<{ x: number; y: number; z: number } | null>(null)
-  const [gyro, setGyro] = useState<{ x: number; y: number; z: number } | null>(null)
-  const [pressure, setPressure] = useState<number | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const {
+    isRecording,
+    label,
+    setLabel,
+    logs,
+    sessionId,
+    accel,
+    gyro,
+    pressure,
+    error,
+    startRecording,
+    stopRecording,
+    clearLogs: clearRecordedLogs,
+  } = useSensorRecorder()
   const [saving, setSaving] = useState(false)
   const [saveMsg, setSaveMsg] = useState<string | null>(null)
-
-  const accelRef = useRef<{ x: number; y: number; z: number } | null>(null)
-  const gyroRef = useRef<{ x: number; y: number; z: number } | null>(null)
-  const pressureRef = useRef<number | null>(null)
-  const intervalRef = useRef<NodeJS.Timeout | null>(null)
-
-  useEffect(() => {
-    return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
-  }, [])
-
-  const handleMotion = useCallback((e: DeviceMotionEvent) => {
-    if (e.accelerationIncludingGravity) {
-      const v = {
-        x: e.accelerationIncludingGravity.x ?? 0,
-        y: e.accelerationIncludingGravity.y ?? 0,
-        z: e.accelerationIncludingGravity.z ?? 0,
-      }
-      accelRef.current = v
-      setAccel(v)
-    }
-    if (e.rotationRate) {
-      const v = {
-        x: e.rotationRate.alpha ?? 0,
-        y: e.rotationRate.beta ?? 0,
-        z: e.rotationRate.gamma ?? 0,
-      }
-      gyroRef.current = v
-      setGyro(v)
-    }
-  }, [])
-
-  const startPressureSensor = useCallback(() => {
-    try {
-      // @ts-expect-error Sensor API
-      const S = window.AbsolutePressureSensor || window.PressureSensor
-      if (!S) return
-      const sensor = new S({ frequency: 1 })
-      sensor.addEventListener('reading', () => {
-        pressureRef.current = sensor.pressure
-        setPressure(sensor.pressure)
-      })
-      sensor.start()
-    } catch { /* 非対応端末は無視 */ }
-  }, [])
-
-  const startRecording = async () => {
-    setError(null)
-    // iOS 許可リクエスト
-    if (typeof DeviceMotionEvent !== 'undefined' &&
-      // @ts-expect-error iOS専用
-      typeof DeviceMotionEvent.requestPermission === 'function') {
-      try {
-        // @ts-expect-error iOS専用
-        const perm = await DeviceMotionEvent.requestPermission()
-        if (perm !== 'granted') {
-          setError('センサーの使用が許可されませんでした。設定から位置情報・モーションを許可してください。')
-          return
-        }
-      } catch {
-        setError('センサーの許可リクエストに失敗しました。')
-        return
-      }
-    }
-    window.addEventListener('devicemotion', handleMotion)
-    startPressureSensor()
-    setIsRecording(true)
-    intervalRef.current = setInterval(() => {
-      setLogs(prev => [...prev, {
-        session_id: sessionId,
-        timestamp: new Date().toISOString(),
-        accel_x: accelRef.current?.x ?? null,
-        accel_y: accelRef.current?.y ?? null,
-        accel_z: accelRef.current?.z ?? null,
-        gyro_x: gyroRef.current?.x ?? null,
-        gyro_y: gyroRef.current?.y ?? null,
-        gyro_z: gyroRef.current?.z ?? null,
-        pressure: pressureRef.current,
-        altitude: pressureRef.current ? calcAltitude(pressureRef.current) : null,
-        label,
-      }])
-    }, 200)
-  }
-
-  const stopRecording = () => {
-    window.removeEventListener('devicemotion', handleMotion)
-    if (intervalRef.current) clearInterval(intervalRef.current)
-    setIsRecording(false)
-  }
 
   const saveToDb = async () => {
     if (logs.length === 0) return
@@ -155,7 +60,7 @@ export default function SensorPage() {
 
   const clearLogs = () => {
     if (!confirm('記録データをクリアしますか？')) return
-    setLogs([])
+    clearRecordedLogs()
     setSaveMsg(null)
   }
 

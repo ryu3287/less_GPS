@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import './globals.css'
 import Navbar from '@/components/Navbar'
+import { SensorRecorderProvider } from '@/components/SensorRecorderProvider'
 
 export const metadata: Metadata = {
   title: '旅行記録マップ',
@@ -18,8 +19,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="ja">
       <body>
-        <Navbar />
-        <main className="min-h-screen">{children}</main>
+        <SensorRecorderProvider>
+          <Navbar />
+          <main className="min-h-screen">{children}</main>
+        </SensorRecorderProvider>
       </body>
     </html>
   )
