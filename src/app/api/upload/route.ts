@@ -17,6 +17,12 @@ export async function POST(request: NextRequest) {
     const arrayBuffer = await file.arrayBuffer()
     const buffer = Buffer.from(arrayBuffer)
     const exif = await extractExifFromBuffer(buffer)
+    const latitudeValue = formData.get('latitude')
+    const longitudeValue = formData.get('longitude')
+    const latitude = typeof latitudeValue === 'string' ? Number(latitudeValue) : NaN
+    const longitude = typeof longitudeValue === 'string' ? Number(longitudeValue) : NaN
+    const hasBrowserLocation = Number.isFinite(latitude) && Number.isFinite(longitude)
+      && latitude >= -90 && latitude <= 90 && longitude >= -180 && longitude <= 180
 
     const fileName = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`
     const blob = await put(fileName, buffer, {
@@ -39,8 +45,8 @@ export async function POST(request: NextRequest) {
         ${file.name},
         ${blob.url},
         ${exif.taken_at},
-        ${exif.latitude},
-        ${exif.longitude},
+        ${exif.latitude ?? (hasBrowserLocation ? latitude : null)},
+        ${exif.longitude ?? (hasBrowserLocation ? longitude : null)},
         ${tags}
       ) RETURNING *
     `

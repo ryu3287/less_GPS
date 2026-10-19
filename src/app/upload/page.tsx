@@ -9,21 +9,25 @@ interface UploadItem {
   preview: string
   status: 'pending' | 'uploading' | 'done' | 'error'
   tags?: string[]
+  location?: { latitude: number; longitude: number }
 }
 
 export default function UploadPage() {
   const [items, setItems] = useState<UploadItem[]>([])
   const [isDragOver, setIsDragOver] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [locationNotice, setLocationNotice] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const cameraInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
 
-  const addFiles = useCallback((files: File[]) => {
+  const addFiles = useCallback((files: File[], location?: UploadItem['location']) => {
     const imageFiles = files.filter((f) => f.type.startsWith('image/'))
     const newItems: UploadItem[] = imageFiles.map((file) => ({
       file,
       preview: URL.createObjectURL(file),
       status: 'pending',
+      location,
     }))
     setItems((prev) => [...prev, ...newItems])
   }, [])
@@ -36,6 +40,31 @@ export default function UploadPage() {
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) addFiles(Array.from(e.target.files))
+    e.target.value = ''
+  }
+
+  const handleCameraCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? [])
+    e.target.value = ''
+    setLocationNotice('撮影地点を取得しています...')
+
+    if (!navigator.geolocation) {
+      addFiles(files)
+      setLocationNotice('このブラウザでは位置情報を取得できません。写真のEXIFに位置情報があれば使用します。')
+      return
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        addFiles(files, { latitude: coords.latitude, longitude: coords.longitude })
+        setLocationNotice('撮影地点を写真に記録しました。')
+      },
+      () => {
+        addFiles(files)
+        setLocationNotice('位置情報を取得できませんでした。許可設定を確認するか、写真のEXIF情報をご利用ください。')
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 },
+    )
   }
 
   const removeItem = (index: number) => {
@@ -52,6 +81,11 @@ export default function UploadPage() {
       try {
         const formData = new FormData()
         formData.append('file', items[i].file)
+        const location = items[i].location
+        if (location) {
+          formData.append('latitude', String(location.latitude))
+          formData.append('longitude', String(location.longitude))
+        }
         const res = await fetch('/api/upload', { method: 'POST', body: formData })
         const data = await res.json()
         if (data.success) {
@@ -115,6 +149,24 @@ export default function UploadPage() {
             onChange={handleFileSelect}
           />
         </div>
+        <button
+          type="button"
+          onClick={() => cameraInputRef.current?.click()}
+          className="w-full py-3 border border-stone-200 bg-white text-stone-700 rounded-xl text-sm font-medium active:bg-stone-50 transition-colors"
+        >
+          📷 カメラで撮影して位置を記録
+        </button>
+        <input
+          ref={cameraInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          className="hidden"
+          onChange={handleCameraCapture}
+        />
+        {locationNotice && (
+          <p className="text-xs text-stone-500" role="status">{locationNotice}</p>
+        )}
 
         {/* プログレス表示（アップロード中） */}
         {uploading && (
