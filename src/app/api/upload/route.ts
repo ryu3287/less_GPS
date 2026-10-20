@@ -19,8 +19,11 @@ export async function POST(request: NextRequest) {
     const exif = await extractExifFromBuffer(buffer)
     const latitudeValue = formData.get('latitude')
     const longitudeValue = formData.get('longitude')
+    const capturedAtValue = formData.get('captured_at')
     const latitude = typeof latitudeValue === 'string' ? Number(latitudeValue) : NaN
     const longitude = typeof longitudeValue === 'string' ? Number(longitudeValue) : NaN
+    const capturedAt = typeof capturedAtValue === 'string' ? new Date(capturedAtValue) : null
+    const takenAt = exif.taken_at ?? (capturedAt && Number.isFinite(capturedAt.getTime()) ? capturedAt.toISOString() : null)
     const hasBrowserLocation = Number.isFinite(latitude) && Number.isFinite(longitude)
       && latitude >= -90 && latitude <= 90 && longitude >= -180 && longitude <= 180
 
@@ -44,7 +47,7 @@ export async function POST(request: NextRequest) {
       ) VALUES (
         ${file.name},
         ${blob.url},
-        ${exif.taken_at},
+        ${takenAt},
         ${exif.latitude ?? (hasBrowserLocation ? latitude : null)},
         ${exif.longitude ?? (hasBrowserLocation ? longitude : null)},
         ${tags}

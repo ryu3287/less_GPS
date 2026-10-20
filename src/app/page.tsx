@@ -5,24 +5,49 @@ import { Photo } from '@/types'
 import MapView from '@/components/MapView'
 import PhotoSidebar from '@/components/PhotoSidebar'
 import TagFilter from '@/components/TagFilter'
+import { useFinishedSensorLogs } from '@/components/SensorRecorderProvider'
 import { buildTravelPath, summarizeTravelMode } from '@/lib/travel'
+import { SensorLog } from '@/types'
 
 export default function HomePage() {
   const [photos, setPhotos] = useState<Photo[]>([])
-  const [selectedTag, setSelectedTag] = useState<string | null>(null)
+  const [selectedTags, setSelectedTags] = useState<string[]>([])
+  const [tagRefreshKey, setTagRefreshKey] = useState(0)
   const [selectedPhoto, setSelectedPhoto] = useState<Photo | null>(null)
   const [loading, setLoading] = useState(true)
+  const [storedSensorLogs, setStoredSensorLogs] = useState<SensorLog[]>([])
+  const finishedSensorLogs = useFinishedSensorLogs()
   // スマホ用：サイドバー表示切り替え
   const [showSidebar, setShowSidebar] = useState(false)
 
-  const routePoints = useMemo(() => buildTravelPath(photos), [photos])
+  const sensorLogRange = useMemo(() => {
+    const timestamps = photos
+      .map((photo) => photo.taken_at ? new Date(photo.taken_at).getTime() : NaN)
+      .filter(Number.isFinite)
+    if (timestamps.length === 0) return null
+    return {
+      from: new Date(Math.min(...timestamps)).toISOString(),
+      to: new Date(Math.max(...timestamps)).toISOString(),
+    }
+  }, [photos])
+
+  const routeSensorLogs = useMemo(() => {
+    const uniqueLogs = new Map<string, SensorLog>()
+    for (const log of [...storedSensorLogs, ...finishedSensorLogs]) {
+      uniqueLogs.set(`${log.session_id}:${log.timestamp}`, log)
+    }
+    return [...uniqueLogs.values()].sort((a, b) => a.timestamp.localeCompare(b.timestamp))
+  }, [storedSensorLogs, finishedSensorLogs])
+  const routePoints = useMemo(() => buildTravelPath(photos, routeSensorLogs), [photos, routeSensorLogs])
   const travelSummary = useMemo(() => summarizeTravelMode(photos), [photos])
 
   const fetchPhotos = useCallback(async () => {
     setLoading(true)
     try {
-      const params = selectedTag ? `?tag=${encodeURIComponent(selectedTag)}` : ''
-      const res = await fetch(`/api/photos${params}`)
+      const params = new URLSearchParams()
+      selectedTags.forEach((tag) => params.append('tag', tag))
+      const query = params.toString()
+      const res = await fetch(`/api/photos${query ? `?${query}` : ''}`)
       const data = await res.json()
       setPhotos(data.photos || [])
     } catch (err) {
@@ -30,9 +55,33 @@ export default function HomePage() {
     } finally {
       setLoading(false)
     }
-  }, [selectedTag])
+  }, [selectedTags])
 
   useEffect(() => { fetchPhotos() }, [fetchPhotos])
+
+  const handlePhotosChanged = useCallback(() => {
+    setTagRefreshKey((key) => key + 1)
+    void fetchPhotos()
+  }, [fetchPhotos])
+
+  useEffect(() => {
+    if (!sensorLogRange) {
+      setStoredSensorLogs([])
+      return
+    }
+    let cancelled = false
+    const params = new URLSearchParams(sensorLogRange)
+    fetch(`/api/sensor-logs?${params}`)
+      .then((res) => {
+        if (!res.ok) throw new Error('センサーログの取得に失敗しました')
+        return res.json()
+      })
+      .then((data) => {
+        if (!cancelled) setStoredSensorLogs(data.logs || [])
+      })
+      .catch((error) => console.error('Failed to fetch sensor logs:', error))
+    return () => { cancelled = true }
+  }, [sensorLogRange])
 
   const photosWithLocation = photos.filter(
     (p) => p.latitude !== null && p.longitude !== null
@@ -47,14 +96,14 @@ export default function HomePage() {
           <h2 className="text-xs font-semibold text-stone-500 uppercase tracking-wider mb-3">
             タグフィルター
           </h2>
-          <TagFilter selectedTag={selectedTag} onTagSelect={setSelectedTag} />
+          <TagFilter selectedTags={selectedTags} onTagsChange={setSelectedTags} refreshKey={tagRefreshKey} />
         </div>
         <div className="flex-1 overflow-y-auto">
           <PhotoSidebar
             photos={photos}
             selectedPhoto={selectedPhoto}
             onSelectPhoto={setSelectedPhoto}
-            onPhotoDeleted={fetchPhotos}
+            onPhotosChanged={handlePhotosChanged}
             loading={loading}
           />
         </div>
@@ -74,7 +123,7 @@ export default function HomePage() {
         <div className="absolute left-4 top-4 z-10 max-w-xs rounded-2xl border border-orange-100 bg-white/90 px-3 py-2 shadow-sm backdrop-blur-sm">
           <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-orange-500">Low GPS Mode</p>
           <p className="mt-1 text-xs text-stone-600">
-            写真撮影時のみGPSを使い、{typeof travelSummary === 'object' ? travelSummary.anchorCount : 0}件のアンカーから経路を再構成
+            写真GPS {typeof travelSummary === 'object' ? travelSummary.anchorCount : 0}点と歩行センサーから経路を推定。ログがない区間は直線表示
           </p>
         </div>
 
@@ -136,7 +185,7 @@ export default function HomePage() {
                   閉じる
                 </button>
               </div>
-              <TagFilter selectedTag={selectedTag} onTagSelect={setSelectedTag} />
+              <TagFilter selectedTags={selectedTags} onTagsChange={setSelectedTags} refreshKey={tagRefreshKey} />
             </div>
             {/* 写真リスト */}
             <div className="flex-1 overflow-y-auto">
@@ -147,7 +196,7 @@ export default function HomePage() {
                   setSelectedPhoto(photo)
                   setShowSidebar(false)
                 }}
-                onPhotoDeleted={fetchPhotos}
+                onPhotosChanged={handlePhotosChanged}
                 loading={loading}
               />
             </div>

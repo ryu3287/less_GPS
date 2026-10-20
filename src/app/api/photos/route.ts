@@ -8,13 +8,13 @@ export async function GET(request: NextRequest) {
   try {
     const db = requireDb()
     const { searchParams } = new URL(request.url)
-    const tag = searchParams.get('tag')
+    const tags = [...new Set(searchParams.getAll('tag').map((tag) => tag.trim()).filter(Boolean))]
 
-    const rows = tag
+    const rows = tags.length > 0
       ? await db`
           SELECT *
           FROM photos
-          WHERE ${tag} = ANY(tags)
+          WHERE tags && ${tags}::text[]
           ORDER BY taken_at ASC
         `
       : await db`
@@ -24,6 +24,34 @@ export async function GET(request: NextRequest) {
         `
 
     return NextResponse.json({ photos: rows || [] })
+  } catch (error) {
+    return NextResponse.json({ error: String(error) }, { status: 500 })
+  }
+}
+
+export async function PATCH(request: NextRequest) {
+  try {
+    const db = requireDb()
+    const { searchParams } = new URL(request.url)
+    const id = searchParams.get('id')
+    const body = await request.json()
+    const { tags } = body
+
+    if (!id) return NextResponse.json({ error: 'ID required' }, { status: 400 })
+    if (!Array.isArray(tags) || tags.length > 30 || tags.some((tag) => typeof tag !== 'string' || tag.length > 60)) {
+      return NextResponse.json({ error: 'Invalid tags' }, { status: 400 })
+    }
+
+    const normalizedTags = [...new Set(tags.map((tag: string) => tag.trim()).filter(Boolean))]
+    const rows = await db`
+      UPDATE photos
+      SET tags = ${normalizedTags}::text[]
+      WHERE id = ${id}
+      RETURNING *
+    `
+
+    if (!rows[0]) return NextResponse.json({ error: 'Photo not found' }, { status: 404 })
+    return NextResponse.json({ success: true, photo: rows[0] })
   } catch (error) {
     return NextResponse.json({ error: String(error) }, { status: 500 })
   }

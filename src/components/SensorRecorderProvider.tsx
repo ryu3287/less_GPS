@@ -40,6 +40,7 @@ interface SensorRecorderContextValue {
 }
 
 const SensorRecorderContext = createContext<SensorRecorderContextValue | null>(null)
+const FinishedSensorLogsContext = createContext<SensorEntry[]>([])
 
 export function SensorRecorderProvider({ children }: { children: ReactNode }) {
   const [isRecording, setIsRecording] = useState(false)
@@ -50,10 +51,12 @@ export function SensorRecorderProvider({ children }: { children: ReactNode }) {
   const [gyro, setGyro] = useState<{ x: number; y: number; z: number } | null>(null)
   const [pressure, setPressure] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [finishedLogs, setFinishedLogs] = useState<SensorEntry[]>([])
 
   const accelRef = useRef<{ x: number; y: number; z: number } | null>(null)
   const gyroRef = useRef<{ x: number; y: number; z: number } | null>(null)
   const pressureRef = useRef<number | null>(null)
+  const logsRef = useRef<SensorEntry[]>([])
   const labelRef = useRef(label)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const pressureSensorRef = useRef<{ stop?: () => void } | null>(null)
@@ -122,7 +125,7 @@ export function SensorRecorderProvider({ children }: { children: ReactNode }) {
     startPressureSensor()
     setIsRecording(true)
     intervalRef.current = setInterval(() => {
-      setLogs((previous) => [...previous, {
+      const next = [...logsRef.current, {
         session_id: sessionId,
         timestamp: new Date().toISOString(),
         accel_x: accelRef.current?.x ?? null,
@@ -134,7 +137,9 @@ export function SensorRecorderProvider({ children }: { children: ReactNode }) {
         pressure: pressureRef.current,
         altitude: pressureRef.current ? 44330 * (1 - Math.pow(pressureRef.current / 1013.25, 1 / 5.255)) : null,
         label: labelRef.current,
-      }])
+      }]
+      logsRef.current = next
+      setLogs(next)
     }, 200)
   }, [handleMotion, sessionId, startPressureSensor])
 
@@ -144,6 +149,7 @@ export function SensorRecorderProvider({ children }: { children: ReactNode }) {
     intervalRef.current = null
     pressureSensorRef.current?.stop?.()
     pressureSensorRef.current = null
+    setFinishedLogs(logsRef.current)
     setIsRecording(false)
   }, [handleMotion])
 
@@ -158,25 +164,31 @@ export function SensorRecorderProvider({ children }: { children: ReactNode }) {
     setLabelState(nextLabel)
   }
 
-  const clearLogs = () => setLogs([])
+  const clearLogs = () => {
+    logsRef.current = []
+    setLogs([])
+    setFinishedLogs([])
+  }
 
   return (
-    <SensorRecorderContext.Provider value={{
-      isRecording,
-      label,
-      setLabel,
-      logs,
-      sessionId,
-      accel,
-      gyro,
-      pressure,
-      error,
-      startRecording,
-      stopRecording,
-      clearLogs,
-    }}>
-      {children}
-    </SensorRecorderContext.Provider>
+    <FinishedSensorLogsContext.Provider value={finishedLogs}>
+      <SensorRecorderContext.Provider value={{
+        isRecording,
+        label,
+        setLabel,
+        logs,
+        sessionId,
+        accel,
+        gyro,
+        pressure,
+        error,
+        startRecording,
+        stopRecording,
+        clearLogs,
+      }}>
+        {children}
+      </SensorRecorderContext.Provider>
+    </FinishedSensorLogsContext.Provider>
   )
 }
 
@@ -184,4 +196,8 @@ export function useSensorRecorder() {
   const context = useContext(SensorRecorderContext)
   if (!context) throw new Error('useSensorRecorder must be used within SensorRecorderProvider')
   return context
+}
+
+export function useFinishedSensorLogs() {
+  return useContext(FinishedSensorLogsContext)
 }

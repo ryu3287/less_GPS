@@ -8,7 +8,7 @@ interface PhotoSidebarProps {
   photos: Photo[]
   selectedPhoto: Photo | null
   onSelectPhoto: (photo: Photo) => void
-  onPhotoDeleted: () => void
+  onPhotosChanged: () => void
   loading: boolean
 }
 
@@ -16,10 +16,13 @@ export default function PhotoSidebar({
   photos,
   selectedPhoto,
   onSelectPhoto,
-  onPhotoDeleted,
+  onPhotosChanged,
   loading,
 }: PhotoSidebarProps) {
   const [deleting, setDeleting] = useState<string | null>(null)
+  const [editingPhotoId, setEditingPhotoId] = useState<string | null>(null)
+  const [tagDraft, setTagDraft] = useState('')
+  const [savingTags, setSavingTags] = useState(false)
 
   const handleDelete = async (e: React.MouseEvent, photoId: string) => {
     e.stopPropagation()
@@ -29,7 +32,7 @@ export default function PhotoSidebar({
     try {
       const res = await fetch(`/api/photos?id=${photoId}`, { method: 'DELETE' })
       if (res.ok) {
-        onPhotoDeleted()
+        onPhotosChanged()
       } else {
         alert('削除に失敗しました')
       }
@@ -38,6 +41,28 @@ export default function PhotoSidebar({
       alert('削除に失敗しました')
     } finally {
       setDeleting(null) // ✅ バグ修正: photoId → null にリセット
+    }
+  }
+
+  const saveTags = async (event: React.FormEvent, photoId: string) => {
+    event.preventDefault()
+    event.stopPropagation()
+    const tags = [...new Set(tagDraft.split(',').map((tag) => tag.trim()).filter(Boolean))]
+    setSavingTags(true)
+    try {
+      const res = await fetch(`/api/photos?id=${photoId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tags }),
+      })
+      if (!res.ok) throw new Error('タグの保存に失敗しました')
+      setEditingPhotoId(null)
+      onPhotosChanged()
+    } catch (error) {
+      console.error('Tag update error:', error)
+      alert('タグの保存に失敗しました')
+    } finally {
+      setSavingTags(false)
     }
   }
 
@@ -103,13 +128,55 @@ export default function PhotoSidebar({
               {photo.latitude === null && (
                 <p className="text-xs text-amber-500">GPS情報なし</p>
               )}
-              <div className="flex flex-wrap gap-1 mt-1">
-                {(photo.tags || []).slice(0, 3).map((tag) => (
-                  <span key={tag} className="text-xs bg-sky-50 text-sky-600 rounded px-1.5 py-0.5">
-                    {tag}
-                  </span>
-                ))}
-              </div>
+              {editingPhotoId === photo.id ? (
+                <form
+                  className="mt-2 space-y-1.5"
+                  onSubmit={(event) => saveTags(event, photo.id)}
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <input
+                    value={tagDraft}
+                    onChange={(event) => setTagDraft(event.target.value)}
+                    placeholder="例: 山, 旅行"
+                    aria-label={`${photo.file_name}のタグ。カンマ区切り`}
+                    className="w-full min-w-0 rounded border border-stone-200 px-2 py-1 text-xs outline-none focus:border-sky-400"
+                  />
+                  <div className="flex gap-2">
+                    <button type="submit" disabled={savingTags} className="text-xs text-sky-600 disabled:opacity-50">
+                      {savingTags ? '保存中...' : '保存'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditingPhotoId(null)}
+                      disabled={savingTags}
+                      className="text-xs text-stone-400"
+                    >
+                      キャンセル
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {(photo.tags || []).map((tag) => (
+                      <span key={tag} className="text-xs bg-sky-50 text-sky-600 rounded px-1.5 py-0.5">
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      setTagDraft((photo.tags || []).join(', '))
+                      setEditingPhotoId(photo.id)
+                    }}
+                    className="mt-1 text-xs text-stone-400 hover:text-sky-600"
+                  >
+                    タグを編集
+                  </button>
+                </>
+              )}
             </div>
             <button
               onClick={(e) => handleDelete(e, photo.id)}

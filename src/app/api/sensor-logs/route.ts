@@ -8,6 +8,15 @@ export async function GET(request: NextRequest) {
     const db = requireDb()
     const { searchParams } = new URL(request.url)
     const session_id = searchParams.get('session_id')
+    const fromValue = searchParams.get('from')
+    const toValue = searchParams.get('to')
+    const from = fromValue ? new Date(fromValue) : null
+    const to = toValue ? new Date(toValue) : null
+
+    if ((fromValue && (!from || !Number.isFinite(from.getTime()))) ||
+      (toValue && (!to || !Number.isFinite(to.getTime())))) {
+      return NextResponse.json({ error: 'Invalid time range' }, { status: 400 })
+    }
 
     const rows = session_id
       ? await db`
@@ -16,6 +25,14 @@ export async function GET(request: NextRequest) {
           WHERE session_id = ${session_id}
           ORDER BY timestamp ASC
         `
+      : from && to
+        ? await db`
+            SELECT *
+            FROM sensor_logs
+            WHERE timestamp >= ${from.toISOString()}::timestamptz
+              AND timestamp <= ${to.toISOString()}::timestamptz
+            ORDER BY timestamp ASC
+          `
       : await db`
           SELECT *
           FROM sensor_logs

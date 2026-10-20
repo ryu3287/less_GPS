@@ -10,6 +10,7 @@ interface UploadItem {
   status: 'pending' | 'uploading' | 'done' | 'error'
   tags?: string[]
   location?: { latitude: number; longitude: number }
+  capturedAt?: string
 }
 
 export default function UploadPage() {
@@ -21,13 +22,18 @@ export default function UploadPage() {
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
 
-  const addFiles = useCallback((files: File[], location?: UploadItem['location']) => {
+  const addFiles = useCallback((
+    files: File[],
+    location?: UploadItem['location'],
+    capturedAt?: string,
+  ) => {
     const imageFiles = files.filter((f) => f.type.startsWith('image/'))
     const newItems: UploadItem[] = imageFiles.map((file) => ({
       file,
       preview: URL.createObjectURL(file),
       status: 'pending',
       location,
+      capturedAt,
     }))
     setItems((prev) => [...prev, ...newItems])
   }, [])
@@ -45,22 +51,23 @@ export default function UploadPage() {
 
   const handleCameraCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? [])
+    const capturedAt = new Date().toISOString()
     e.target.value = ''
     setLocationNotice('撮影地点を取得しています...')
 
     if (!navigator.geolocation) {
-      addFiles(files)
+      addFiles(files, undefined, capturedAt)
       setLocationNotice('このブラウザでは位置情報を取得できません。写真のEXIFに位置情報があれば使用します。')
       return
     }
 
     navigator.geolocation.getCurrentPosition(
       ({ coords }) => {
-        addFiles(files, { latitude: coords.latitude, longitude: coords.longitude })
+        addFiles(files, { latitude: coords.latitude, longitude: coords.longitude }, capturedAt)
         setLocationNotice('撮影地点を写真に記録しました。')
       },
       () => {
-        addFiles(files)
+        addFiles(files, undefined, capturedAt)
         setLocationNotice('位置情報を取得できませんでした。許可設定を確認するか、写真のEXIF情報をご利用ください。')
       },
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 },
@@ -86,6 +93,8 @@ export default function UploadPage() {
           formData.append('latitude', String(location.latitude))
           formData.append('longitude', String(location.longitude))
         }
+        const capturedAt = items[i].capturedAt
+        if (capturedAt) formData.append('captured_at', capturedAt)
         const res = await fetch('/api/upload', { method: 'POST', body: formData })
         const data = await res.json()
         if (data.success) {

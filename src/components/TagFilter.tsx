@@ -3,8 +3,9 @@
 import { useEffect, useState } from 'react'
 
 interface TagFilterProps {
-  selectedTag: string | null
-  onTagSelect: (tag: string | null) => void
+  selectedTags: string[]
+  onTagsChange: (tags: string[]) => void
+  refreshKey: number
 }
 
 interface TagItem {
@@ -12,7 +13,7 @@ interface TagItem {
   count: number
 }
 
-export default function TagFilter({ selectedTag, onTagSelect }: TagFilterProps) {
+export default function TagFilter({ selectedTags, onTagsChange, refreshKey }: TagFilterProps) {
   const [tags, setTags] = useState<TagItem[]>([])
 
   useEffect(() => {
@@ -20,7 +21,7 @@ export default function TagFilter({ selectedTag, onTagSelect }: TagFilterProps) 
       .then((r) => r.json())
       .then((d) => setTags(d.tags || []))
       .catch(() => {})
-  }, [])
+  }, [refreshKey])
 
   if (tags.length === 0) {
     return <p className="text-xs text-stone-400">タグなし</p>
@@ -29,9 +30,9 @@ export default function TagFilter({ selectedTag, onTagSelect }: TagFilterProps) 
   return (
     <div className="flex flex-wrap gap-1.5">
       <button
-        onClick={() => onTagSelect(null)}
+        onClick={() => onTagsChange([])}
         className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
-          selectedTag === null ? 'bg-stone-800 text-white' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+          selectedTags.length === 0 ? 'bg-stone-800 text-white' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
         }`}
       >
         すべて
@@ -39,9 +40,13 @@ export default function TagFilter({ selectedTag, onTagSelect }: TagFilterProps) 
       {tags.map(({ tag, count }) => (
         <button
           key={tag}
-          onClick={() => onTagSelect(selectedTag === tag ? null : tag)}
+          onClick={() => onTagsChange(
+            selectedTags.includes(tag)
+              ? selectedTags.filter((selected) => selected !== tag)
+              : [...selectedTags, tag],
+          )}
           className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
-            selectedTag === tag ? 'bg-sky-500 text-white' : 'bg-sky-50 text-sky-600 hover:bg-sky-100'
+            selectedTags.includes(tag) ? 'bg-sky-500 text-white' : 'bg-sky-50 text-sky-600 hover:bg-sky-100'
           }`}
         >
           {tag}
