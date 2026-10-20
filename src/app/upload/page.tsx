@@ -11,6 +11,7 @@ interface UploadItem {
   tags?: string[]
   location?: { latitude: number; longitude: number }
   capturedAt?: string
+  gpsStatus?: 'saved' | 'missing'
 }
 
 export default function UploadPage() {
@@ -47,6 +48,28 @@ export default function UploadPage() {
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) addFiles(Array.from(e.target.files))
     e.target.value = ''
+  }
+
+  const attachCurrentLocation = (index: number) => {
+    if (!navigator.geolocation) {
+      setLocationNotice('このブラウザでは位置情報を取得できません。')
+      return
+    }
+    setLocationNotice('現在地を取得しています...')
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        setItems((prev) => prev.map((item, itemIndex) => itemIndex === index
+          ? {
+              ...item,
+              location: { latitude: coords.latitude, longitude: coords.longitude },
+              capturedAt: item.capturedAt ?? new Date().toISOString(),
+            }
+          : item))
+        setLocationNotice('現在地を追加しました。EXIFに位置情報があれば、そちらを優先します。')
+      },
+      () => setLocationNotice('位置情報を取得できませんでした。ブラウザの許可設定を確認してください。'),
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
+    )
   }
 
   const handleCameraCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -99,7 +122,14 @@ export default function UploadPage() {
         const data = await res.json()
         if (data.success) {
           setItems((prev) =>
-            prev.map((item, idx) => idx === i ? { ...item, status: 'done', tags: data.photo.tags } : item)
+            prev.map((item, idx) => idx === i
+              ? {
+                  ...item,
+                  status: 'done',
+                  tags: data.photo.tags,
+                  gpsStatus: data.photo.latitude !== null && data.photo.longitude !== null ? 'saved' : 'missing',
+                }
+              : item)
           )
         } else {
           throw new Error(data.error)
@@ -128,6 +158,9 @@ export default function UploadPage() {
       </div>
 
       <div className="px-4 py-4 space-y-4 max-w-lg mx-auto">
+        <p className="text-xs text-stone-500">
+          選択した写真にGPSがない場合、撮影直後の写真だけ現在地を追加できます。過去の写真の位置は、EXIFに情報がなければ復元できません。
+        </p>
 
         {/* ドロップゾーン（PC）/ タップゾーン（スマホ） */}
         <div
@@ -214,7 +247,10 @@ export default function UploadPage() {
                   </div>
                 )}
                 {item.status === 'done' && (
-                  <div className="absolute inset-0 bg-green-500/20 flex items-start justify-end p-1.5">
+                  <div className="absolute inset-0 bg-black/10 flex items-start justify-between p-1.5">
+                    <span className={`px-1.5 py-0.5 text-[9px] rounded ${item.gpsStatus === 'saved' ? 'bg-green-600 text-white' : 'bg-amber-500 text-white'}`}>
+                      {item.gpsStatus === 'saved' ? 'GPSあり' : 'GPSなし'}
+                    </span>
                     <span className="bg-green-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">✓</span>
                   </div>
                 )}
@@ -222,6 +258,16 @@ export default function UploadPage() {
                   <div className="absolute inset-0 bg-red-500/20 flex items-start justify-end p-1.5">
                     <span className="bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">✗</span>
                   </div>
+                )}
+                {item.status === 'pending' && !item.location && (
+                  <button
+                    type="button"
+                    onClick={(event) => { event.stopPropagation(); attachCurrentLocation(i) }}
+                    title="撮影直後の写真に現在地を追加"
+                    className="absolute bottom-1 left-1 rounded bg-black/65 px-1.5 py-1 text-[9px] text-white"
+                  >
+                    📍今の場所
+                  </button>
                 )}
                 {/* AIタグ表示 */}
                 {item.tags && item.tags.length > 0 && (
