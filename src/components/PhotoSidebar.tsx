@@ -2,12 +2,14 @@
 
 import Image from 'next/image'
 import { Photo } from '@/types'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 
 interface PhotoSidebarProps {
   photos: Photo[]
   selectedPhoto: Photo | null
   onSelectPhoto: (photo: Photo) => void
+  hiddenPhotoIds: Set<string>
+  onToggleMapVisibility: (photoId: string) => void
   onPhotosChanged: () => void
   loading: boolean
 }
@@ -16,6 +18,8 @@ export default function PhotoSidebar({
   photos,
   selectedPhoto,
   onSelectPhoto,
+  hiddenPhotoIds,
+  onToggleMapVisibility,
   onPhotosChanged,
   loading,
 }: PhotoSidebarProps) {
@@ -23,6 +27,27 @@ export default function PhotoSidebar({
   const [editingPhotoId, setEditingPhotoId] = useState<string | null>(null)
   const [tagDraft, setTagDraft] = useState('')
   const [savingTags, setSavingTags] = useState(false)
+  const lastTapRef = useRef<{ photoId: string; time: number } | null>(null)
+  const suppressNextClickRef = useRef(false)
+
+  const handleRowPointerUp = (event: React.PointerEvent, photoId: string) => {
+    if ((event.target as HTMLElement).closest('button, input, form')) {
+      lastTapRef.current = null
+      return
+    }
+    if (event.pointerType === 'mouse' && event.button !== 0) return
+
+    const now = Date.now()
+    const lastTap = lastTapRef.current
+    if (lastTap?.photoId === photoId && now - lastTap.time < 450) {
+      event.preventDefault()
+      lastTapRef.current = null
+      suppressNextClickRef.current = true
+      onToggleMapVisibility(photoId)
+      return
+    }
+    lastTapRef.current = { photoId, time: now }
+  }
 
   const handleDelete = async (e: React.MouseEvent, photoId: string) => {
     e.stopPropagation()
@@ -88,6 +113,9 @@ export default function PhotoSidebar({
 
   return (
     <div className="divide-y divide-stone-100">
+      <p className="px-3 py-2 text-[10px] text-stone-400">
+        写真をダブルタップ／ダブルクリックして地図表示を切替
+      </p>
       {photos.map((photo, index) => {
         const isSelected = selectedPhoto?.id === photo.id
         const date = photo.taken_at
@@ -100,9 +128,18 @@ export default function PhotoSidebar({
         return (
           <div
             key={photo.id}
-            onClick={() => onSelectPhoto(photo)}
+            onPointerUp={(event) => handleRowPointerUp(event, photo.id)}
+            onClick={() => {
+              if (suppressNextClickRef.current) {
+                suppressNextClickRef.current = false
+                return
+              }
+              onSelectPhoto(photo)
+            }}
+            onDoubleClick={(event) => event.preventDefault()}
+            style={{ touchAction: 'manipulation' }}
             className={`flex gap-3 p-3 cursor-pointer transition-colors group ${
-              isSelected ? 'bg-sky-50' : 'hover:bg-stone-50'
+              isSelected ? 'bg-sky-50' : hiddenPhotoIds.has(photo.id) ? 'opacity-60 hover:bg-stone-50' : 'hover:bg-stone-50'
             }`}
           >
             <div className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white ${isSelected ? 'bg-orange-400' : 'bg-sky-400'}`}>
@@ -127,6 +164,11 @@ export default function PhotoSidebar({
               )}
               {photo.latitude === null && (
                 <p className="text-xs text-amber-500">GPS情報なし</p>
+              )}
+              {photo.latitude !== null && (
+                <p className={`text-[10px] ${hiddenPhotoIds.has(photo.id) ? 'text-stone-400' : 'text-teal-600'}`}>
+                  {hiddenPhotoIds.has(photo.id) ? '地図に非表示' : '地図に表示中'}
+                </p>
               )}
               {editingPhotoId === photo.id ? (
                 <form

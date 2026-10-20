@@ -14,6 +14,7 @@ export default function HomePage() {
   const [selectedTags, setSelectedTags] = useState<string[]>([])
   const [tagRefreshKey, setTagRefreshKey] = useState(0)
   const [selectedPhoto, setSelectedPhoto] = useState<Photo | null>(null)
+  const [hiddenPhotoIds, setHiddenPhotoIds] = useState<Set<string>>(() => new Set())
   const [loading, setLoading] = useState(true)
   const [storedSensorLogs, setStoredSensorLogs] = useState<SensorLog[]>([])
   const finishedSensorLogs = useFinishedSensorLogs()
@@ -38,7 +39,6 @@ export default function HomePage() {
     }
     return [...uniqueLogs.values()].sort((a, b) => a.timestamp.localeCompare(b.timestamp))
   }, [storedSensorLogs, finishedSensorLogs])
-  const routePoints = useMemo(() => buildTravelPath(photos, routeSensorLogs), [photos, routeSensorLogs])
   const travelSummary = useMemo(() => summarizeTravelMode(photos), [photos])
 
   const fetchPhotos = useCallback(async () => {
@@ -86,6 +86,21 @@ export default function HomePage() {
   const photosWithLocation = photos.filter(
     (p) => p.latitude !== null && p.longitude !== null
   )
+  const mapPhotos = photosWithLocation.filter((photo) => !hiddenPhotoIds.has(photo.id))
+  const toggleMapVisibility = useCallback((photoId: string) => {
+    const hiding = !hiddenPhotoIds.has(photoId)
+    setHiddenPhotoIds((previous) => {
+      const next = new Set(previous)
+      if (next.has(photoId)) next.delete(photoId)
+      else next.add(photoId)
+      return next
+    })
+    if (hiding && selectedPhoto?.id === photoId) setSelectedPhoto(null)
+  }, [hiddenPhotoIds, selectedPhoto])
+  const visibleRoutePoints = useMemo(
+    () => buildTravelPath(mapPhotos, routeSensorLogs),
+    [mapPhotos, routeSensorLogs],
+  )
 
   return (
     <div className="flex h-[calc(100vh-56px)] relative overflow-hidden">
@@ -102,13 +117,17 @@ export default function HomePage() {
           <PhotoSidebar
             photos={photos}
             selectedPhoto={selectedPhoto}
-            onSelectPhoto={setSelectedPhoto}
+            onSelectPhoto={(photo) => {
+              if (!hiddenPhotoIds.has(photo.id)) setSelectedPhoto(photo)
+            }}
+            hiddenPhotoIds={hiddenPhotoIds}
+            onToggleMapVisibility={toggleMapVisibility}
             onPhotosChanged={handlePhotosChanged}
             loading={loading}
           />
         </div>
         <div className="p-3 border-t border-stone-100 text-xs text-stone-400 text-center">
-          {photosWithLocation.length} 枚の写真が地図上に表示
+          {mapPhotos.length} 枚の写真が地図上に表示
         </div>
       </div>
 
@@ -128,9 +147,9 @@ export default function HomePage() {
         </div>
 
         <MapView
-          photos={photosWithLocation}
+          photos={mapPhotos}
           selectedPhoto={selectedPhoto}
-          routePoints={routePoints}
+          routePoints={visibleRoutePoints}
           onSelectPhoto={(photo) => {
             setSelectedPhoto(photo)
             setShowSidebar(true) // スマホ：写真タップでサイドバー表示
@@ -152,7 +171,7 @@ export default function HomePage() {
         <div className="sm:hidden absolute bottom-5 left-4 z-10">
           <div className="bg-white/90 backdrop-blur-sm rounded-full px-3 py-1.5 shadow-sm border border-stone-200">
             <p className="text-xs text-stone-500">
-              📍 {photosWithLocation.length}枚
+              📍 {mapPhotos.length}枚
             </p>
           </div>
         </div>
@@ -193,16 +212,20 @@ export default function HomePage() {
                 photos={photos}
                 selectedPhoto={selectedPhoto}
                 onSelectPhoto={(photo) => {
-                  setSelectedPhoto(photo)
-                  setShowSidebar(false)
+                  if (!hiddenPhotoIds.has(photo.id)) {
+                    setSelectedPhoto(photo)
+                    setShowSidebar(false)
+                  }
                 }}
+                hiddenPhotoIds={hiddenPhotoIds}
+                onToggleMapVisibility={toggleMapVisibility}
                 onPhotosChanged={handlePhotosChanged}
                 loading={loading}
               />
             </div>
             {/* 枚数表示 */}
             <div className="p-3 border-t border-stone-100 text-xs text-stone-400 text-center safe-bottom">
-              {photosWithLocation.length} 枚の写真が地図上に表示
+              {mapPhotos.length} 枚の写真が地図上に表示
             </div>
           </div>
         </>
