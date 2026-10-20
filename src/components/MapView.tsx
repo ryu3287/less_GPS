@@ -5,6 +5,17 @@ import { Loader } from '@googlemaps/js-api-loader'
 import { Photo } from '@/types'
 import { buildTravelPath, TravelPathPoint } from '@/lib/travel'
 
+function markerIcon(selected: boolean): google.maps.Symbol {
+  return {
+    path: google.maps.SymbolPath.CIRCLE,
+    scale: selected ? 19 : 16,
+    fillColor: selected ? '#f97316' : '#0ea5e9',
+    fillOpacity: 1,
+    strokeColor: 'white',
+    strokeWeight: selected ? 3 : 2,
+  }
+}
+
 interface MapViewProps {
   photos: Photo[]
   selectedPhoto: Photo | null
@@ -16,8 +27,11 @@ export default function MapView({ photos, selectedPhoto, onSelectPhoto, routePoi
   const mapRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<google.maps.Map | null>(null)
   const markersRef = useRef<google.maps.Marker[]>([])
+  const markersByPhotoIdRef = useRef(new Map<string, google.maps.Marker>())
   const polylineRef = useRef<google.maps.Polyline | null>(null)
   const infoWindowRef = useRef<google.maps.InfoWindow | null>(null)
+  const onSelectPhotoRef = useRef(onSelectPhoto)
+  onSelectPhotoRef.current = onSelectPhoto
 
   const buildInfoWindowContent = useCallback((photo: Photo) => {
     const date = photo.taken_at
@@ -65,6 +79,7 @@ export default function MapView({ photos, selectedPhoto, onSelectPhoto, routePoi
     if (!mapInstanceRef.current) return
     markersRef.current.forEach((m) => m.setMap(null))
     markersRef.current = []
+    markersByPhotoIdRef.current.clear()
     polylineRef.current?.setMap(null)
     if (photos.length === 0) return
 
@@ -81,25 +96,21 @@ export default function MapView({ photos, selectedPhoto, onSelectPhoto, routePoi
       const marker = new google.maps.Marker({
         position,
         map: mapInstanceRef.current!,
+        clickable: true,
+        cursor: 'pointer',
         label: { text: String(index + 1), color: 'white', fontSize: '12px', fontWeight: 'bold' },
-        icon: {
-          path: google.maps.SymbolPath.CIRCLE,
-          scale: 16,
-          fillColor: selectedPhoto?.id === photo.id ? '#f97316' : '#0ea5e9',
-          fillOpacity: 1,
-          strokeColor: 'white',
-          strokeWeight: 2,
-        },
+        icon: markerIcon(false),
         title: photo.file_name,
       })
       marker.addListener('click', () => {
-        onSelectPhoto(photo)
+        onSelectPhotoRef.current(photo)
         if (infoWindowRef.current) {
           infoWindowRef.current.setContent(buildInfoWindowContent(photo))
           infoWindowRef.current.open(mapInstanceRef.current!, marker)
         }
       })
       markersRef.current.push(marker)
+      markersByPhotoIdRef.current.set(photo.id, marker)
     })
 
     if (effectiveRoute.length > 1) {
@@ -130,7 +141,14 @@ export default function MapView({ photos, selectedPhoto, onSelectPhoto, routePoi
     } else if (path.length > 1) {
       mapInstanceRef.current.fitBounds(bounds, 60)
     }
-  }, [photos, selectedPhoto, onSelectPhoto, buildInfoWindowContent, routePoints])
+  }, [photos, buildInfoWindowContent, routePoints])
+
+  useEffect(() => {
+    markersByPhotoIdRef.current.forEach((marker, photoId) => {
+      marker.setIcon(markerIcon(selectedPhoto?.id === photoId))
+      marker.setZIndex(selectedPhoto?.id === photoId ? google.maps.Marker.MAX_ZINDEX + 1 : undefined)
+    })
+  }, [selectedPhoto])
 
   useEffect(() => {
     if (!selectedPhoto || !mapInstanceRef.current) return
