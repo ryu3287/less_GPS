@@ -33,6 +33,7 @@ interface SensorRecorderContextValue {
   accel: { x: number; y: number; z: number } | null
   gyro: { x: number; y: number; z: number } | null
   pressure: number | null
+  altitude: number | null
   error: string | null
   startRecording: () => Promise<void>
   stopRecording: () => void
@@ -50,12 +51,14 @@ export function SensorRecorderProvider({ children }: { children: ReactNode }) {
   const [accel, setAccel] = useState<{ x: number; y: number; z: number } | null>(null)
   const [gyro, setGyro] = useState<{ x: number; y: number; z: number } | null>(null)
   const [pressure, setPressure] = useState<number | null>(null)
+  const [altitude, setAltitude] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [finishedLogs, setFinishedLogs] = useState<SensorEntry[]>([])
 
   const accelRef = useRef<{ x: number; y: number; z: number } | null>(null)
   const gyroRef = useRef<{ x: number; y: number; z: number } | null>(null)
   const pressureRef = useRef<number | null>(null)
+  const altitudeRef = useRef<number | null>(null)
   const logsRef = useRef<SensorEntry[]>([])
   const labelRef = useRef(label)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -123,6 +126,18 @@ export function SensorRecorderProvider({ children }: { children: ReactNode }) {
 
     window.addEventListener('devicemotion', handleMotion)
     startPressureSensor()
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        ({ coords }) => {
+          if (coords.altitude !== null && Number.isFinite(coords.altitude)) {
+            altitudeRef.current = coords.altitude
+            setAltitude(coords.altitude)
+          }
+        },
+        () => { /* 高度が取得できない端末は気圧値のみ表示 */ },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 },
+      )
+    }
     setIsRecording(true)
     intervalRef.current = setInterval(() => {
       const next = [...logsRef.current, {
@@ -135,7 +150,9 @@ export function SensorRecorderProvider({ children }: { children: ReactNode }) {
         gyro_y: gyroRef.current?.y ?? null,
         gyro_z: gyroRef.current?.z ?? null,
         pressure: pressureRef.current,
-        altitude: pressureRef.current ? 44330 * (1 - Math.pow(pressureRef.current / 1013.25, 1 / 5.255)) : null,
+        altitude: pressureRef.current
+          ? 44330 * (1 - Math.pow(pressureRef.current / 1013.25, 1 / 5.255))
+          : altitudeRef.current,
         label: labelRef.current,
       }]
       logsRef.current = next
@@ -181,6 +198,7 @@ export function SensorRecorderProvider({ children }: { children: ReactNode }) {
         accel,
         gyro,
         pressure,
+        altitude,
         error,
         startRecording,
         stopRecording,

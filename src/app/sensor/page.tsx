@@ -17,6 +17,7 @@ export default function SensorPage() {
     accel,
     gyro,
     pressure,
+    altitude,
     error,
     startRecording,
     stopRecording,
@@ -117,13 +118,20 @@ export default function SensorPage() {
           <div className="bg-white rounded-2xl p-3 border border-stone-100 shadow-sm">
             <p className="text-xs font-bold text-purple-500 mb-2">気圧・高度</p>
             <p className="text-xs text-stone-500">気圧</p>
-            <p className="font-mono text-xs text-stone-800">{fmt(pressure)} hPa</p>
+            <p className="font-mono text-xs text-stone-800">
+              {pressure !== null ? `${fmt(pressure)} hPa` : '未対応'}
+            </p>
             <p className="text-xs text-stone-500 mt-1">高度</p>
             <p className="font-mono text-xs text-stone-800">
-              {pressure ? fmt(calcAltitude(pressure)) : '---'} m
+              {pressure !== null ? fmt(calcAltitude(pressure)) : altitude !== null ? fmt(altitude) : '未対応'} m
             </p>
           </div>
         </div>
+        {pressure === null && altitude === null && (
+          <p className="text-xs text-stone-400">
+            このブラウザーでは気圧センサーとGPS高度を取得できません。加速度・ジャイロの計測は継続します。
+          </p>
+        )}
 
         {/* ラベル選択 */}
         <div className="bg-white rounded-2xl p-4 border border-stone-100 shadow-sm">
