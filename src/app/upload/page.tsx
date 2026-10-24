@@ -3,6 +3,9 @@
 import { useState, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
+import exifr from 'exifr'
+
+const MAX_UPLOAD_BYTES = 3.8 * 1024 * 1024
 
 interface UploadItem {
   file: File
@@ -12,6 +15,48 @@ interface UploadItem {
   location?: { latitude: number; longitude: number }
   capturedAt?: string
   gpsStatus?: 'saved' | 'missing'
+  errorMessage?: string
+}
+
+async function prepareImageForUpload(file: File) {
+  let latitude: number | undefined
+  let longitude: number | undefined
+  let takenAt: string | undefined
+
+  try {
+    const exif = await exifr.parse(file, { pick: ['DateTimeOriginal'] })
+    const gps = await exifr.gps(file)
+    if (gps?.latitude !== undefined && gps?.longitude !== undefined) {
+      latitude = gps.latitude
+      longitude = gps.longitude
+    }
+    if (exif?.DateTimeOriginal) {
+      const date = new Date(exif.DateTimeOriginal)
+      if (Number.isFinite(date.getTime())) takenAt = date.toISOString()
+    }
+  } catch {
+    // サーバー側でも再解析するため、読み取り失敗は継続する
+  }
+
+  if (file.size <= MAX_UPLOAD_BYTES) return { file, latitude, longitude, takenAt }
+
+  const bitmap = await createImageBitmap(file)
+  const scale = Math.min(1, 2048 / Math.max(bitmap.width, bitmap.height))
+  const canvas = document.createElement('canvas')
+  canvas.width = Math.max(1, Math.round(bitmap.width * scale))
+  canvas.height = Math.max(1, Math.round(bitmap.height * scale))
+  canvas.getContext('2d')?.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
+  bitmap.close()
+
+  const blob = await new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob((result) => result ? resolve(result) : reject(new Error('画像の圧縮に失敗しました')), 'image/jpeg', 0.82)
+  })
+  return {
+    file: new File([blob], `${file.name.replace(/\.[^.]+$/, '')}.jpg`, { type: 'image/jpeg' }),
+    latitude,
+    longitude,
+    takenAt,
+  }
 }
 
 export default function UploadPage() {
@@ -109,14 +154,20 @@ export default function UploadPage() {
         prev.map((item, idx) => idx === i ? { ...item, status: 'uploading' } : item)
       )
       try {
+        const item = items[i]
+        const prepared = await prepareImageForUpload(item.file)
         const formData = new FormData()
-        formData.append('file', items[i].file)
-        const location = items[i].location
+        formData.append('file', prepared.file)
+        const location = item.location ?? (
+          prepared.latitude !== undefined && prepared.longitude !== undefined
+            ? { latitude: prepared.latitude, longitude: prepared.longitude }
+            : undefined
+        )
         if (location) {
           formData.append('latitude', String(location.latitude))
           formData.append('longitude', String(location.longitude))
         }
-        const capturedAt = items[i].capturedAt
+        const capturedAt = item.capturedAt ?? prepared.takenAt
         if (capturedAt) formData.append('captured_at', capturedAt)
         const res = await fetch('/api/upload', { method: 'POST', body: formData })
         const data = await res.json()
@@ -136,7 +187,9 @@ export default function UploadPage() {
         }
       } catch {
         setItems((prev) =>
-          prev.map((item, idx) => idx === i ? { ...item, status: 'error' } : item)
+          prev.map((item, idx) => idx === i
+            ? { ...item, status: 'error', errorMessage: '画像形式または容量のためアップロードできませんでした' }
+            : item)
         )
       }
     }
@@ -255,8 +308,11 @@ export default function UploadPage() {
                   </div>
                 )}
                 {item.status === 'error' && (
-                  <div className="absolute inset-0 bg-red-500/20 flex items-start justify-end p-1.5">
+                  <div className="absolute inset-0 bg-red-500/25 flex flex-col items-end justify-between p-1.5">
                     <span className="bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">✗</span>
+                    <span className="w-full bg-black/60 text-white text-[9px] leading-tight p-1">
+                      {item.errorMessage}
+                    </span>
                   </div>
                 )}
                 {item.status === 'pending' && !item.location && (
