@@ -114,7 +114,7 @@ export default function PhotoSidebar({
   return (
     <div className="divide-y divide-stone-100">
       <p className="px-3 py-2 text-[10px] text-stone-400">
-        写真をダブルタップ／ダブルクリックして地図表示を切替
+        濃灰の番号は一覧番号。写真をダブルタップ／ダブルクリックして地図表示を切替
       </p>
       {photos.map((photo, index) => {
         const isSelected = selectedPhoto?.id === photo.id
@@ -142,7 +142,12 @@ export default function PhotoSidebar({
               isSelected ? 'bg-sky-50' : hiddenPhotoIds.has(photo.id) ? 'opacity-60 hover:bg-stone-50' : 'hover:bg-stone-50'
             }`}
           >
-            <div className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white ${isSelected ? 'bg-orange-400' : 'bg-sky-400'}`}>
+            <div
+              className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white ${
+                isSelected ? 'bg-orange-400' : 'bg-stone-700'
+              }`}
+              title="一覧上の番号"
+            >
               {index + 1}
             </div>
             <div className="w-14 h-14 rounded-md overflow-hidden flex-shrink-0 bg-stone-100">

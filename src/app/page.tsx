@@ -144,6 +144,7 @@ export default function HomePage() {
           <p className="mt-1 text-xs text-stone-600">
             写真GPS {typeof travelSummary === 'object' ? travelSummary.anchorCount : 0}点と歩行センサーから経路を推定（{routeSensorLogs.length}件）。ログがない区間は直線表示
           </p>
+          <p className="mt-1 text-[10px] text-sky-600">青いピンの番号は地図上の表示順です</p>
         </div>
 
         <MapView

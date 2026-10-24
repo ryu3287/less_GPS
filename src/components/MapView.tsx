@@ -100,7 +100,7 @@ export default function MapView({ photos, selectedPhoto, onSelectPhoto, routePoi
         cursor: 'pointer',
         label: { text: String(index + 1), color: 'white', fontSize: '12px', fontWeight: 'bold' },
         icon: markerIcon(false),
-        title: photo.file_name,
+        title: `地図上の番号 ${index + 1}: ${photo.file_name}`,
       })
       marker.addListener('click', () => {
         onSelectPhotoRef.current(photo)
