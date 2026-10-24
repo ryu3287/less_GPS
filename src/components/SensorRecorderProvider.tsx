@@ -171,7 +171,7 @@ export function SensorRecorderProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <FinishedSensorLogsContext.Provider value={finishedLogs}>
+    <FinishedSensorLogsContext.Provider value={isRecording ? logs : finishedLogs}>
       <SensorRecorderContext.Provider value={{
         isRecording,
         label,

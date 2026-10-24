@@ -142,7 +142,7 @@ export default function HomePage() {
         <div className="absolute left-4 top-4 z-10 max-w-xs rounded-2xl border border-orange-100 bg-white/90 px-3 py-2 shadow-sm backdrop-blur-sm">
           <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-orange-500">Low GPS Mode</p>
           <p className="mt-1 text-xs text-stone-600">
-            写真GPS {typeof travelSummary === 'object' ? travelSummary.anchorCount : 0}点と歩行センサーから経路を推定。ログがない区間は直線表示
+            写真GPS {typeof travelSummary === 'object' ? travelSummary.anchorCount : 0}点と歩行センサーから経路を推定（{routeSensorLogs.length}件）。ログがない区間は直線表示
           </p>
         </div>
 
