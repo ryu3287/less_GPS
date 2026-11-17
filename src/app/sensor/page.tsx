@@ -79,7 +79,7 @@ export default function SensorPage() {
         <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 text-amber-800">
           <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-amber-600">Low GPS Design</p>
           <p className="mt-1 text-xs leading-5 text-amber-700">
-            移動中はGPSを使わず、写真撮影時だけ位置を確定させます。記録後にアンカーとセンサーログで経路を確認できます。
+            移動中のGPS使用頻度を減らし、写真撮影時に位置を確定させます。記録後にアンカーとセンサーログで経路を確認できます。
           </p>
           <a href="/" className="mt-2 inline-block text-xs font-medium text-amber-800 underline underline-offset-2">
             地図で経路を見る
