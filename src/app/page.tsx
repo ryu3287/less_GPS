@@ -5,7 +5,7 @@ import { Photo } from '@/types'
 import MapView from '@/components/MapView'
 import PhotoSidebar from '@/components/PhotoSidebar'
 import TagFilter from '@/components/TagFilter'
-import { useFinishedSensorLogs } from '@/components/SensorRecorderProvider'
+import { useFinishedSensorLogs, useMapPhotoVisibility } from '@/components/SensorRecorderProvider'
 import { buildTravelPath, summarizeTravelMode } from '@/lib/travel'
 import { SensorLog } from '@/types'
 
@@ -14,10 +14,10 @@ export default function HomePage() {
   const [selectedTags, setSelectedTags] = useState<string[]>([])
   const [tagRefreshKey, setTagRefreshKey] = useState(0)
   const [selectedPhoto, setSelectedPhoto] = useState<Photo | null>(null)
-  const [hiddenPhotoIds, setHiddenPhotoIds] = useState<Set<string>>(() => new Set())
   const [loading, setLoading] = useState(true)
   const [storedSensorLogs, setStoredSensorLogs] = useState<SensorLog[]>([])
   const finishedSensorLogs = useFinishedSensorLogs()
+  const { hiddenPhotoIds, isMapVisibilityReady, togglePhotoVisibility } = useMapPhotoVisibility()
   // スマホ用：サイドバー表示切り替え
   const [showSidebar, setShowSidebar] = useState(false)
 
@@ -86,17 +86,14 @@ export default function HomePage() {
   const photosWithLocation = photos.filter(
     (p) => p.latitude !== null && p.longitude !== null
   )
-  const mapPhotos = photosWithLocation.filter((photo) => !hiddenPhotoIds.has(photo.id))
+  const mapPhotos = isMapVisibilityReady
+    ? photosWithLocation.filter((photo) => !hiddenPhotoIds.has(photo.id))
+    : []
   const toggleMapVisibility = useCallback((photoId: string) => {
     const hiding = !hiddenPhotoIds.has(photoId)
-    setHiddenPhotoIds((previous) => {
-      const next = new Set(previous)
-      if (next.has(photoId)) next.delete(photoId)
-      else next.add(photoId)
-      return next
-    })
+    togglePhotoVisibility(photoId)
     if (hiding && selectedPhoto?.id === photoId) setSelectedPhoto(null)
-  }, [hiddenPhotoIds, selectedPhoto])
+  }, [hiddenPhotoIds, selectedPhoto, togglePhotoVisibility])
   const visibleRoutePoints = useMemo(
     () => buildTravelPath(mapPhotos, routeSensorLogs),
     [mapPhotos, routeSensorLogs],
@@ -123,7 +120,7 @@ export default function HomePage() {
             hiddenPhotoIds={hiddenPhotoIds}
             onToggleMapVisibility={toggleMapVisibility}
             onPhotosChanged={handlePhotosChanged}
-            loading={loading}
+            loading={loading || !isMapVisibilityReady}
           />
         </div>
         <div className="p-3 border-t border-stone-100 text-xs text-stone-400 text-center">
@@ -133,7 +130,7 @@ export default function HomePage() {
 
       {/* ========== マップ（PC・スマホ共通） ========== */}
       <div className="flex-1 relative">
-        {loading && (
+        {(loading || !isMapVisibilityReady) && (
           <div className="absolute inset-0 bg-stone-50/80 flex items-center justify-center z-10">
             <div className="text-stone-400 text-sm">読み込み中...</div>
           </div>
@@ -221,7 +218,7 @@ export default function HomePage() {
                 hiddenPhotoIds={hiddenPhotoIds}
                 onToggleMapVisibility={toggleMapVisibility}
                 onPhotosChanged={handlePhotosChanged}
-                loading={loading}
+                loading={loading || !isMapVisibilityReady}
               />
             </div>
             {/* 枚数表示 */}

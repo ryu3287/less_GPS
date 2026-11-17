@@ -5,6 +5,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type ReactNode,
@@ -42,6 +43,11 @@ interface SensorRecorderContextValue {
 
 const SensorRecorderContext = createContext<SensorRecorderContextValue | null>(null)
 const FinishedSensorLogsContext = createContext<SensorEntry[]>([])
+const MapPhotoVisibilityContext = createContext<{
+  hiddenPhotoIds: Set<string>
+  isMapVisibilityReady: boolean
+  togglePhotoVisibility: (photoId: string) => void
+} | null>(null)
 
 export function SensorRecorderProvider({ children }: { children: ReactNode }) {
   const [isRecording, setIsRecording] = useState(false)
@@ -54,6 +60,8 @@ export function SensorRecorderProvider({ children }: { children: ReactNode }) {
   const [altitude, setAltitude] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [finishedLogs, setFinishedLogs] = useState<SensorEntry[]>([])
+  const [hiddenPhotoIds, setHiddenPhotoIds] = useState<Set<string>>(() => new Set())
+  const [isMapVisibilityReady, setIsMapVisibilityReady] = useState(false)
 
   const accelRef = useRef<{ x: number; y: number; z: number } | null>(null)
   const gyroRef = useRef<{ x: number; y: number; z: number } | null>(null)
@@ -63,6 +71,31 @@ export function SensorRecorderProvider({ children }: { children: ReactNode }) {
   const labelRef = useRef(label)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const pressureSensorRef = useRef<{ stop?: () => void } | null>(null)
+
+  useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem('less-gps:hidden-photo-ids')
+      if (saved) {
+        const ids: unknown = JSON.parse(saved)
+        if (Array.isArray(ids) && ids.every((id) => typeof id === 'string')) {
+          setHiddenPhotoIds(new Set(ids))
+        }
+      }
+    } catch (storageError) {
+      console.warn('Could not restore hidden map photos:', storageError)
+    } finally {
+      setIsMapVisibilityReady(true)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!isMapVisibilityReady) return
+    try {
+      sessionStorage.setItem('less-gps:hidden-photo-ids', JSON.stringify([...hiddenPhotoIds]))
+    } catch (storageError) {
+      console.warn('Could not save hidden map photos:', storageError)
+    }
+  }, [hiddenPhotoIds, isMapVisibilityReady])
 
   useEffect(() => {
     labelRef.current = label
@@ -105,6 +138,20 @@ export function SensorRecorderProvider({ children }: { children: ReactNode }) {
       // 非対応端末は無視
     }
   }, [])
+
+  const togglePhotoVisibility = useCallback((photoId: string) => {
+    setHiddenPhotoIds((previous) => {
+      const next = new Set(previous)
+      if (next.has(photoId)) next.delete(photoId)
+      else next.add(photoId)
+      return next
+    })
+  }, [])
+  const mapPhotoVisibility = useMemo(() => ({
+    hiddenPhotoIds,
+    isMapVisibilityReady,
+    togglePhotoVisibility,
+  }), [hiddenPhotoIds, isMapVisibilityReady, togglePhotoVisibility])
 
   const startRecording = useCallback(async () => {
     setError(null)
@@ -188,25 +235,27 @@ export function SensorRecorderProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <FinishedSensorLogsContext.Provider value={isRecording ? logs : finishedLogs}>
-      <SensorRecorderContext.Provider value={{
-        isRecording,
-        label,
-        setLabel,
-        logs,
-        sessionId,
-        accel,
-        gyro,
-        pressure,
-        altitude,
-        error,
-        startRecording,
-        stopRecording,
-        clearLogs,
-      }}>
-        {children}
-      </SensorRecorderContext.Provider>
-    </FinishedSensorLogsContext.Provider>
+    <MapPhotoVisibilityContext.Provider value={mapPhotoVisibility}>
+      <FinishedSensorLogsContext.Provider value={isRecording ? logs : finishedLogs}>
+        <SensorRecorderContext.Provider value={{
+          isRecording,
+          label,
+          setLabel,
+          logs,
+          sessionId,
+          accel,
+          gyro,
+          pressure,
+          altitude,
+          error,
+          startRecording,
+          stopRecording,
+          clearLogs,
+        }}>
+          {children}
+        </SensorRecorderContext.Provider>
+      </FinishedSensorLogsContext.Provider>
+    </MapPhotoVisibilityContext.Provider>
   )
 }
 
@@ -218,4 +267,10 @@ export function useSensorRecorder() {
 
 export function useFinishedSensorLogs() {
   return useContext(FinishedSensorLogsContext)
+}
+
+export function useMapPhotoVisibility() {
+  const context = useContext(MapPhotoVisibilityContext)
+  if (!context) throw new Error('useMapPhotoVisibility must be used within SensorRecorderProvider')
+  return context
 }
