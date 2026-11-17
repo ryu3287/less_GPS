@@ -39,10 +39,10 @@ export default function SensorPage() {
 
   const downloadCsv = () => {
     if (logs.length === 0) return
-    const header = 'timestamp,accel_x,accel_y,accel_z,gyro_x,gyro_y,gyro_z,pressure,altitude,label'
+    const header = 'timestamp,accel_x,accel_y,accel_z,gyro_x,gyro_y,gyro_z,altitude,label'
     const rows = logs.map(l =>
       [l.timestamp, l.accel_x, l.accel_y, l.accel_z,
-        l.gyro_x, l.gyro_y, l.gyro_z, l.pressure, l.altitude, l.label].join(',')
+        l.gyro_x, l.gyro_y, l.gyro_z, l.altitude, l.label].join(',')
     )
     const blob = new Blob([[header, ...rows].join('\n')], { type: 'text/csv' })
     const a = document.createElement('a')
@@ -64,7 +64,7 @@ export default function SensorPage() {
       {/* ヘッダー */}
       <div className="bg-white border-b border-stone-200 px-4 py-3 sticky top-0 z-10">
         <h1 className="text-base font-bold text-stone-800">📡 センサー計測</h1>
-        <p className="text-xs text-stone-400 mt-0.5">加速度・ジャイロ・気圧をリアルタイム記録</p>
+        <p className="text-xs text-stone-400 mt-0.5">加速度・ジャイロをリアルタイム記録</p>
       </div>
 
       <div className="px-4 py-4 space-y-4 max-w-lg mx-auto">
@@ -188,9 +188,6 @@ export default function SensorPage() {
                     <p className="text-xs font-mono text-stone-700">
                       Z: {fmt(log.accel_z)}
                     </p>
-                    <p className="text-[10px] font-mono text-stone-400">
-                      {fmt(log.pressure)} hPa
-                    </p>
                   </div>
                 </div>
               ))}
@@ -204,7 +201,6 @@ export default function SensorPage() {
             <p className="text-xs font-bold text-teal-700 mb-2">📖 使い方</p>
             <ol className="space-y-1">
               {[
-                '行動ラベルを選択する',
                 '「計測開始」をタップ（iOSは許可ダイアログが表示）',
                 '歩く・電車に乗るなど実際に移動する',
                 '「計測停止」をタップして記録を終了',

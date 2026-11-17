@@ -206,7 +206,7 @@ export default function UploadPage() {
       <div className="bg-white border-b border-stone-200 px-4 py-3 sticky top-0 z-10">
         <h1 className="text-base font-bold text-stone-800">📸 写真をアップロード</h1>
         <p className="text-xs text-stone-400 mt-0.5">
-          写真を選ぶだけ。EXIF解析・AIタグ付けはサーバーが自動処理します
+          写真を選択または撮影してアップロードできます
         </p>
       </div>
 

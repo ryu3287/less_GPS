@@ -47,6 +47,7 @@ const MapPhotoVisibilityContext = createContext<{
   hiddenPhotoIds: Set<string>
   isMapVisibilityReady: boolean
   togglePhotoVisibility: (photoId: string) => void
+  setPhotoVisibility: (photoIds: string[], visible: boolean) => void
 } | null>(null)
 
 export function SensorRecorderProvider({ children }: { children: ReactNode }) {
@@ -147,11 +148,22 @@ export function SensorRecorderProvider({ children }: { children: ReactNode }) {
       return next
     })
   }, [])
+  const setPhotoVisibility = useCallback((photoIds: string[], visible: boolean) => {
+    setHiddenPhotoIds((previous) => {
+      const next = new Set(previous)
+      for (const photoId of photoIds) {
+        if (visible) next.delete(photoId)
+        else next.add(photoId)
+      }
+      return next
+    })
+  }, [])
   const mapPhotoVisibility = useMemo(() => ({
     hiddenPhotoIds,
     isMapVisibilityReady,
     togglePhotoVisibility,
-  }), [hiddenPhotoIds, isMapVisibilityReady, togglePhotoVisibility])
+    setPhotoVisibility,
+  }), [hiddenPhotoIds, isMapVisibilityReady, setPhotoVisibility, togglePhotoVisibility])
 
   const startRecording = useCallback(async () => {
     setError(null)

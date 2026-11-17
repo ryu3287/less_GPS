@@ -17,7 +17,12 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true)
   const [storedSensorLogs, setStoredSensorLogs] = useState<SensorLog[]>([])
   const finishedSensorLogs = useFinishedSensorLogs()
-  const { hiddenPhotoIds, isMapVisibilityReady, togglePhotoVisibility } = useMapPhotoVisibility()
+  const {
+    hiddenPhotoIds,
+    isMapVisibilityReady,
+    togglePhotoVisibility,
+    setPhotoVisibility,
+  } = useMapPhotoVisibility()
   // スマホ用：サイドバー表示切り替え
   const [showSidebar, setShowSidebar] = useState(false)
 
@@ -98,6 +103,11 @@ export default function HomePage() {
     () => buildTravelPath(mapPhotos, routeSensorLogs),
     [mapPhotos, routeSensorLogs],
   )
+  const toggleAllMapPhotos = () => {
+    const showAll = mapPhotos.length === 0
+    setPhotoVisibility(photosWithLocation.map((photo) => photo.id), showAll)
+    if (!showAll) setSelectedPhoto(null)
+  }
 
   return (
     <div className="flex h-[calc(100vh-56px)] relative overflow-hidden">
@@ -142,6 +152,14 @@ export default function HomePage() {
             写真GPS {typeof travelSummary === 'object' ? travelSummary.anchorCount : 0}点と歩行センサーから経路を推定（{routeSensorLogs.length}件）。ログがない区間は直線表示
           </p>
           <p className="mt-1 text-[10px] text-sky-600">青いピンの番号は地図上の表示順です</p>
+          <button
+            type="button"
+            onClick={toggleAllMapPhotos}
+            disabled={photosWithLocation.length === 0 || !isMapVisibilityReady}
+            className="mt-2 rounded-md border border-stone-200 bg-white px-2.5 py-1.5 text-xs font-medium text-stone-700 shadow-sm hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {mapPhotos.length === 0 ? 'すべてのピンを表示' : '地図の選択をすべて解除'}
+          </button>
         </div>
 
         <MapView
