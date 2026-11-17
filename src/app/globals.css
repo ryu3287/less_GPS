@@ -27,15 +27,8 @@ body {
 .map-container {
   width: 100%;
   height: 100%;
-  border-radius: 12px;
+  border-radius: 0;
   overflow: hidden;
-}
-
-/* スマホでは角丸なし */
-@media (max-width: 640px) {
-  .map-container {
-    border-radius: 0;
-  }
 }
 
 /* ドラッグ&ドロップゾーン */

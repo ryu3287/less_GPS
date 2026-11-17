@@ -21,7 +21,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <SensorRecorderProvider>
           <Navbar />
-          <main className="min-h-screen">{children}</main>
+          <main className="min-h-[calc(100dvh-56px)]">{children}</main>
         </SensorRecorderProvider>
       </body>
     </html>
