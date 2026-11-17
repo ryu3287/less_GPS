@@ -3,21 +3,13 @@
 import { useState } from 'react'
 import { useSensorRecorder } from '@/components/SensorRecorderProvider'
 
-function calcAltitude(pressure: number): number {
-  return 44330 * (1 - Math.pow(pressure / 1013.25, 1 / 5.255))
-}
-
 export default function SensorPage() {
   const {
     isRecording,
-    label,
-    setLabel,
     logs,
     sessionId,
     accel,
     gyro,
-    pressure,
-    altitude,
     error,
     startRecording,
     stopRecording,
@@ -67,8 +59,6 @@ export default function SensorPage() {
 
   const fmt = (v: number | null) => v !== null ? v.toFixed(2) : '---'
 
-  const LABELS = ['歩行中', '電車', 'バス', '車', '静止中', 'その他']
-
   return (
     <div className="min-h-screen bg-stone-50">
       {/* ヘッダー */}
@@ -97,7 +87,7 @@ export default function SensorPage() {
         </div>
 
         {/* リアルタイム数値カード */}
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-2 gap-2">
           {/* 加速度 */}
           <div className="bg-white rounded-2xl p-3 border border-stone-100 shadow-sm">
             <p className="text-xs font-bold text-teal-500 mb-2">加速度</p>
@@ -114,43 +104,6 @@ export default function SensorPage() {
             <p className="text-xs text-stone-500">γ <span className="font-mono text-stone-800">{fmt(gyro?.z ?? null)}</span></p>
             <p className="text-[9px] text-stone-300 mt-1">°/s</p>
           </div>
-          {/* 気圧・高度 */}
-          <div className="bg-white rounded-2xl p-3 border border-stone-100 shadow-sm">
-            <p className="text-xs font-bold text-purple-500 mb-2">気圧・高度</p>
-            <p className="text-xs text-stone-500">気圧</p>
-            <p className="font-mono text-xs text-stone-800">
-              {pressure !== null ? `${fmt(pressure)} hPa` : '未対応'}
-            </p>
-            <p className="text-xs text-stone-500 mt-1">高度</p>
-            <p className="font-mono text-xs text-stone-800">
-              {pressure !== null ? fmt(calcAltitude(pressure)) : altitude !== null ? fmt(altitude) : '未対応'} m
-            </p>
-          </div>
-        </div>
-        {pressure === null && altitude === null && (
-          <p className="text-xs text-stone-400">
-            このブラウザーでは気圧センサーとGPS高度を取得できません。加速度・ジャイロの計測は継続します。
-          </p>
-        )}
-
-        {/* ラベル選択 */}
-        <div className="bg-white rounded-2xl p-4 border border-stone-100 shadow-sm">
-          <p className="text-xs font-bold text-stone-500 mb-3">行動ラベル</p>
-          <div className="grid grid-cols-3 gap-2">
-            {LABELS.map(l => (
-              <button
-                key={l}
-                onClick={() => setLabel(l)}
-                className={`py-2 rounded-xl text-xs font-medium transition-colors ${
-                  label === l
-                    ? 'bg-teal-500 text-white shadow-sm'
-                    : 'bg-stone-100 text-stone-600 active:bg-stone-200'
-                }`}
-              >
-                {l}
-              </button>
-            ))}
-          </div>
         </div>
 
         {/* 計測ステータス */}
@@ -164,9 +117,6 @@ export default function SensorPage() {
               <p className="text-xs text-stone-400">{logs.length} 件記録済み</p>
             </div>
           </div>
-          <p className="text-xs text-stone-400 bg-stone-50 px-2 py-1 rounded-lg">
-            {label}
-          </p>
         </div>
 
         {/* メインボタン（大きめ・スマホ操作しやすく） */}
